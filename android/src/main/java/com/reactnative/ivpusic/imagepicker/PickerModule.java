@@ -19,6 +19,7 @@ import android.webkit.MimeTypeMap;
 
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.FileProvider;
+import androidx.core.content.ContextCompat;
 
 import com.facebook.react.bridge.ActivityEventListener;
 import com.facebook.react.bridge.Callback;
@@ -48,6 +49,10 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 
+import com.sangcomz.fishbun.FishBun;
+import com.sangcomz.fishbun.adapter.image.impl.GlideAdapter;
+
+import android.util.Log;
 class PickerModule extends ReactContextBaseJavaModule implements ActivityEventListener {
 
     private static final int IMAGE_PICKER_REQUEST = 61110;
@@ -337,33 +342,50 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
     }
 
     private void initiatePicker(final Activity activity) {
-        try {
-            final Intent galleryIntent = new Intent(Intent.ACTION_GET_CONTENT);
-
-            if (cropping || mediaType.equals("photo")) {
-                galleryIntent.setType("image/*");
-                if (cropping) {
-                    String[] mimetypes = {"image/jpeg", "image/png"};
-                    galleryIntent.putExtra(Intent.EXTRA_MIME_TYPES, mimetypes);
-                }
-            } else if (mediaType.equals("video")) {
-                galleryIntent.setType("video/*");
-            } else {
-                galleryIntent.setType("*/*");
-                String[] mimetypes = {"image/*", "video/*"};
-                galleryIntent.putExtra(Intent.EXTRA_MIME_TYPES, mimetypes);
+ try {
+            if(multiple){
+                FishBun.with(activity)
+                        .setImageAdapter(new GlideAdapter())
+                        .setPickerCount(4)
+                        .setPickerSpanCount(2)
+                        .setActionBarColor(Color.parseColor("#8823CE"), Color.parseColor("#8823CE"), false)
+                        .setActionBarTitleColor(Color.parseColor("#FFFFFF"))
+                        .setAlbumSpanCount(1, 2)
+                        .setButtonInAlbumActivity(true)
+                        .setCamera(false)
+                        .exceptGif(true)
+                        .setReachLimitAutomaticClose(false)
+                        .setAllViewTitle("All of your photos")
+                        .setActionBarTitle("Qeepsake")
+                        .setHomeAsUpIndicatorDrawable(ContextCompat.getDrawable(activity, R.drawable.ic_arrow_back_white_24dp))
+                        .setDoneButtonDrawable(ContextCompat.getDrawable(activity, R.drawable.ic_check_white_24dp))
+                        .textOnImagesSelectionLimitReached("You can only select upto 4 photos")
+                        .textOnNothingSelected("Please select a photo!")
+                        .startAlbum();
+                    } else {
+                FishBun.with(activity)
+                        .setImageAdapter(new GlideAdapter())
+                        .setPickerCount(1)
+                        .setPickerSpanCount(2)
+                        .setActionBarColor(Color.parseColor("#8823CE"), Color.parseColor("#8823CE"), false)
+                        .setActionBarTitleColor(Color.parseColor("#FFFFFF"))
+                        .setAlbumSpanCount(1, 2)
+                        .setButtonInAlbumActivity(true)
+                        .setCamera(false)
+                        .exceptGif(true)
+                        .setReachLimitAutomaticClose(false)
+                        .setAllViewTitle("All of your photos")
+                        .setActionBarTitle("Qeepsake")
+                        .setHomeAsUpIndicatorDrawable(ContextCompat.getDrawable(activity, R.drawable.ic_arrow_back_white_24dp))
+                        .setDoneButtonDrawable(ContextCompat.getDrawable(activity, R.drawable.ic_check_white_24dp))
+                        .textOnImagesSelectionLimitReached("You can only select 1 photo")
+                        .textOnNothingSelected("Please select a photo!")
+                        .startAlbum();
             }
-
-            galleryIntent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-            galleryIntent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, multiple);
-            galleryIntent.addCategory(Intent.CATEGORY_OPENABLE);
-
-            final Intent chooserIntent = Intent.createChooser(galleryIntent, "Pick an image");
-            activity.startActivityForResult(chooserIntent, IMAGE_PICKER_REQUEST);
         } catch (Exception e) {
             resultCollector.notifyProblem(E_FAILED_TO_SHOW_PICKER, e);
         }
-    }
+        }
 
     @ReactMethod
     public void openPicker(final ReadableMap options, final Promise promise) {
@@ -615,7 +637,7 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
 
     private void configureCropperColors(UCrop.Options options) {
         if (cropperActiveWidgetColor != null) {
-            options.setActiveControlsWidgetColor(Color.parseColor(cropperActiveWidgetColor));
+           // options.setActiveControlsWidgetColor(Color.parseColor(cropperActiveWidgetColor));
         }
 
         if (cropperToolbarColor != null) {
@@ -673,42 +695,57 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
         if (resultCode == Activity.RESULT_CANCELED) {
             resultCollector.notifyProblem(E_PICKER_CANCELLED_KEY, E_PICKER_CANCELLED_MSG);
         } else if (resultCode == Activity.RESULT_OK) {
-            if (multiple) {
-                ClipData clipData = data.getClipData();
+
+            ClipData clipData = data.getClipData();
 
                 try {
-                    // only one image selected
-                    if (clipData == null) {
-                        resultCollector.setWaitCount(1);
-                        getAsyncSelection(activity, data.getData(), false);
-                    } else {
-                        resultCollector.setWaitCount(clipData.getItemCount());
-                        for (int i = 0; i < clipData.getItemCount(); i++) {
-                            getAsyncSelection(activity, clipData.getItemAt(i).getUri(), false);
+
+                        ArrayList path = new ArrayList<Uri>();
+                        path = data.getStringArrayListExtra(FishBun.INTENT_PATH);
+                        resultCollector.setWaitCount(path.size());
+                        for (int i = 0; i < path.size(); i++) {
+                        getAsyncSelection(activity, Uri.parse(path.get(i).toString()), false);
                         }
-                    }
                 } catch (Exception ex) {
                     resultCollector.notifyProblem(E_NO_IMAGE_DATA_FOUND, ex.getMessage());
                 }
-
-            } else {
-                Uri uri = data.getData();
-
-                if (uri == null) {
-                    resultCollector.notifyProblem(E_NO_IMAGE_DATA_FOUND, "Cannot resolve image url");
-                    return;
-                }
-
-                if (cropping) {
-                    startCropping(activity, uri);
-                } else {
-                    try {
-                        getAsyncSelection(activity, uri, false);
-                    } catch (Exception ex) {
-                        resultCollector.notifyProblem(E_NO_IMAGE_DATA_FOUND, ex.getMessage());
-                    }
-                }
             }
+            // if (multiple) {
+            //     ClipData clipData = data.getClipData();
+
+            //     try {
+            //         // only one image selected
+            //         if (clipData == null) {
+            //             resultCollector.setWaitCount(1);
+            //             getAsyncSelection(activity, data.getData(), false);
+            //         } else {
+            //             resultCollector.setWaitCount(clipData.getItemCount());
+            //             for (int i = 0; i < clipData.getItemCount(); i++) {
+            //                 getAsyncSelection(activity, clipData.getItemAt(i).getUri(), false);
+            //             }
+            //         }
+            //     } catch (Exception ex) {
+            //         resultCollector.notifyProblem(E_NO_IMAGE_DATA_FOUND, ex.getMessage());
+            //     }
+
+            // } else {
+            //     Uri uri = data.getData();
+
+            //     if (uri == null) {
+            //         resultCollector.notifyProblem(E_NO_IMAGE_DATA_FOUND, "Cannot resolve image url");
+            //         return;
+            //     }
+
+            //     if (cropping) {
+            //         startCropping(activity, uri);
+            //     } else {
+            //         try {
+            //             getAsyncSelection(activity, uri, false);
+            //         } catch (Exception ex) {
+            //             resultCollector.notifyProblem(E_NO_IMAGE_DATA_FOUND, ex.getMessage());
+            //         }
+            //     }
+            // }
         }
     }
 
@@ -777,12 +814,12 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
 
     @Override
     public void onActivityResult(Activity activity, final int requestCode, final int resultCode, final Intent data) {
-        if (requestCode == IMAGE_PICKER_REQUEST) {
-            imagePickerResult(activity, requestCode, resultCode, data);
-        } else if (requestCode == CAMERA_PICKER_REQUEST) {
+        if (requestCode == CAMERA_PICKER_REQUEST) {
             cameraPickerResult(activity, requestCode, resultCode, data);
         } else if (requestCode == UCrop.REQUEST_CROP) {
             croppingResult(activity, requestCode, resultCode, data);
+        } else if (requestCode == FishBun.FISHBUN_REQUEST_CODE){
+            imagePickerResult(activity, requestCode, resultCode, data);
         }
     }
 
