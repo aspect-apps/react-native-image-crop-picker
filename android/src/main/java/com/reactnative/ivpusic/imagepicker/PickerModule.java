@@ -746,7 +746,7 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
             //         }
             //     }
             // }
-        }
+        
     }
 
     private void cameraPickerResult(Activity activity, final int requestCode, final int resultCode, final Intent data) {
