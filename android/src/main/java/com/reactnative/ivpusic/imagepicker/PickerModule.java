@@ -363,7 +363,7 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
                         .textOnNothingSelected("Please select a photo!")
                         .startAlbum();
                     } else {
-                
+
             final Intent galleryIntent = new Intent(Intent.ACTION_GET_CONTENT);
 
             if (cropping || mediaType.equals("photo")) {
@@ -385,7 +385,8 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
             galleryIntent.addCategory(Intent.CATEGORY_OPENABLE);
 
             final Intent chooserIntent = Intent.createChooser(galleryIntent, "Pick an image");
-            activity.startActivityForResult(chooserIntent, IMAGE_PICKER_REQUEST);                    }
+            activity.startActivityForResult(chooserIntent, IMAGE_PICKER_REQUEST);
+            }
         } catch (Exception e) {
             resultCollector.notifyProblem(E_FAILED_TO_SHOW_PICKER, e);
         }
@@ -695,64 +696,44 @@ class PickerModule extends ReactContextBaseJavaModule implements ActivityEventLi
         uCrop.start(activity);
     }
 
-    private void imagePickerResult(Activity activity, final int requestCode, final int resultCode, final Intent data) {
-        if (resultCode == Activity.RESULT_CANCELED) {
-            resultCollector.notifyProblem(E_PICKER_CANCELLED_KEY, E_PICKER_CANCELLED_MSG);
-        } else if (resultCode == Activity.RESULT_OK) {
+     private void imagePickerResult(Activity activity, final int requestCode, final int resultCode, final Intent data) {
+            if (resultCode == Activity.RESULT_CANCELED) {
+                resultCollector.notifyProblem(E_PICKER_CANCELLED_KEY, E_PICKER_CANCELLED_MSG);
+            } else if (resultCode == Activity.RESULT_OK) {
+                if (multiple) {
+                    ClipData clipData = data.getClipData();
 
-            ClipData clipData = data.getClipData();
-
-                try {
-
+                    try {
                         ArrayList path = new ArrayList<Uri>();
-                        path = data.getStringArrayListExtra(FishBun.INTENT_PATH);
-                        resultCollector.setWaitCount(path.size());
-                        for (int i = 0; i < path.size(); i++) {
-                        getAsyncSelection(activity, Uri.parse(path.get(i).toString()), false);
+                                                path = data.getStringArrayListExtra(FishBun.INTENT_PATH);
+                                                resultCollector.setWaitCount(path.size());
+                                                for (int i = 0; i < path.size(); i++) {
+                                                getAsyncSelection(activity, Uri.parse(path.get(i).toString()), false);
+                                                }
+                    } catch (Exception ex) {
+                        resultCollector.notifyProblem(E_NO_IMAGE_DATA_FOUND, ex.getMessage());
+                    }
+
+                } else {
+                    Uri uri = data.getData();
+
+                    if (uri == null) {
+                        resultCollector.notifyProblem(E_NO_IMAGE_DATA_FOUND, "Cannot resolve image url");
+                        return;
+                    }
+
+                    if (cropping) {
+                        startCropping(activity, uri);
+                    } else {
+                        try {
+                            getAsyncSelection(activity, uri, false);
+                        } catch (Exception ex) {
+                            resultCollector.notifyProblem(E_NO_IMAGE_DATA_FOUND, ex.getMessage());
                         }
-                } catch (Exception ex) {
-                    resultCollector.notifyProblem(E_NO_IMAGE_DATA_FOUND, ex.getMessage());
+                    }
                 }
             }
-            // if (multiple) {
-            //     ClipData clipData = data.getClipData();
-
-            //     try {
-            //         // only one image selected
-            //         if (clipData == null) {
-            //             resultCollector.setWaitCount(1);
-            //             getAsyncSelection(activity, data.getData(), false);
-            //         } else {
-            //             resultCollector.setWaitCount(clipData.getItemCount());
-            //             for (int i = 0; i < clipData.getItemCount(); i++) {
-            //                 getAsyncSelection(activity, clipData.getItemAt(i).getUri(), false);
-            //             }
-            //         }
-            //     } catch (Exception ex) {
-            //         resultCollector.notifyProblem(E_NO_IMAGE_DATA_FOUND, ex.getMessage());
-            //     }
-
-            // } else {
-            //     Uri uri = data.getData();
-
-            //     if (uri == null) {
-            //         resultCollector.notifyProblem(E_NO_IMAGE_DATA_FOUND, "Cannot resolve image url");
-            //         return;
-            //     }
-
-            //     if (cropping) {
-            //         startCropping(activity, uri);
-            //     } else {
-            //         try {
-            //             getAsyncSelection(activity, uri, false);
-            //         } catch (Exception ex) {
-            //             resultCollector.notifyProblem(E_NO_IMAGE_DATA_FOUND, ex.getMessage());
-            //         }
-            //     }
-            // }
-
-    }
-
+        }
     private void cameraPickerResult(Activity activity, final int requestCode, final int resultCode, final Intent data) {
         if (resultCode == Activity.RESULT_CANCELED) {
             resultCollector.notifyProblem(E_PICKER_CANCELLED_KEY, E_PICKER_CANCELLED_MSG);
